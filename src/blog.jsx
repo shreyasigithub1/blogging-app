@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useReducer } from "react";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+
 import { db, auth } from "./firebaseInit";
 import {
   collection,
@@ -31,10 +33,8 @@ function reducer(state, action) {
 
 //Blogging App using Hooks
 export default function Blog() {
-  const [user, setUser] = useState(null); // current logged-in user
-  const [email, setEmail] = useState(""); // for sign-in form
-  const [password, setPassword] = useState(""); // for sign-in form
-  const [error, setError] = useState(""); // to show auth errors
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  const [user, setUser] = useState(null);
 
   // const [title, setTitle] = useState("");
   // const [content, setContent] = useState("");
@@ -63,32 +63,37 @@ export default function Blog() {
     //   createdOn: new Date(),
     // });
 
-    // Add a new document with an auto generated id.
+    let currentUser = user;
+    if (!currentUser) {
+      setShowSignInPrompt(true); // Show the sign-in form
+      return;
+    }
 
     await addDoc(collection(db, "blogs"), {
       Title: formdata.title,
       Content: formdata.content,
       createdOn: new Date(),
-      createdBy: user.uid, // save the user UID here
+      createdBy: currentUser.uid, // ✅ use currentUser
     });
 
     setFormdata({ title: "", content: "" });
     titleRef.current.focus();
   }
   async function handleDelete(id) {
-    try {
-      // Delete the doc in Firestore
-      await deleteDoc(doc(db, "blogs", id));
+    let currentUser = user;
+    if (!currentUser) {
+      setShowSignInPrompt(true); // Show the sign-in form
+      return;
+    }
 
-      // Remove it locally from state
-      dispatch({
-        type: "Remove",
-        id: id,
-      });
+    try {
+      await deleteDoc(doc(db, "blogs", id));
+      dispatch({ type: "Remove", id });
     } catch (error) {
       console.error("Error deleting blog:", error);
     }
   }
+
   useEffect(() => {
     if (titleRef.current) {
       titleRef.current.focus();
@@ -149,110 +154,103 @@ export default function Blog() {
 
   return (
     <>
-      {/* Sign In Form when NOT logged in */}
-      {!user && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await signInWithEmailAndPassword(auth, email, password);
-              setError("");
-            } catch (err) {
-              setError(err.message);
-            }
-          }}
-        >
-          <h2>Sign In</h2>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button type="submit">Sign In</button>
-          {error && <p style={{ color: "red" }}>{error}</p>}
-        </form>
-      )}
-      {/* If user is logged in, show sign out and blog UI */}
-      {user && (
-        <>
+      {!user && showSignInPrompt && (
+        <div>
+          <p className="heading">Please sign in with Google to continue</p>
           <button
-            onClick={() => {
-              signOut(auth);
-              setEmail(""); // Clear email field
-              setPassword("");
+            className="btn"
+            onClick={async () => {
+              const provider = new GoogleAuthProvider();
+              try {
+                const result = await signInWithPopup(auth, provider);
+                setUser(result.user);
+              } catch (err) {
+                console.error("Sign-in failed:", err);
+              }
+            }}
+          >
+            Sign in with Google
+          </button>
+        </div>
+      )}
+      {user && (
+        <div style={{ marginBottom: "2rem" }}>
+          <p className="heading">Signed in as: {user.displayName || user.email}</p>
+          <button
+            className="btn"
+            onClick={async () => {
+              try {
+                await signOut(auth);
+                setUser(null);
+                setShowSignInPrompt(false);
+              } catch (error) {
+                console.error("Sign out failed:", error);
+              }
             }}
           >
             Sign Out
           </button>
-          {/* Heading of the page */}
-          <h1>Write a Blog!</h1>
-
-          {/* Division created to provide styling of section to the form */}
-          <div className="section">
-            {/* Form for to write the blog */}
-            <form onSubmit={handleSubmit}>
-              {/* Row component to create a row for first input field */}
-              <Row label="Title">
-                <input
-                  className="input"
-                  placeholder="Enter the Title of the Blog here.."
-                  value={formdata.title}
-                  onChange={(e) => {
-                    setFormdata({ ...formdata, title: e.target.value });
-                  }}
-                  ref={titleRef}
-                />
-              </Row>
-
-              {/* Row component to create a row for Text area field */}
-              <Row label="Content">
-                <textarea
-                  className="input content"
-                  placeholder="Content of the Blog goes here.."
-                  value={formdata.content}
-                  onChange={(e) => {
-                    setFormdata({ ...formdata, content: e.target.value });
-                  }}
-                  required
-                />
-              </Row>
-
-              {/* Button to submit the blog */}
-              <button className="btn">ADD</button>
-            </form>
-          </div>
-
-          <hr />
-
-          {/* Section where submitted blogs will be displayed */}
-          <h2> Blogs </h2>
-          {blog.map((entry, index) => {
-            return (
-              <div key={index} className="blog">
-                <h3>{entry.title}</h3>
-                <p>{entry.content}</p>
-                <div className="blog-btn">
-                  <button
-                    className="btn remove"
-                    onClick={() => handleDelete(entry.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </>
+        </div>
       )}
+
+      {/* Heading of the page */}
+      <h1>Write a Blog!</h1>
+
+      {/* Division created to provide styling of section to the form */}
+      <div className="section">
+        {/* Form for to write the blog */}
+        <form onSubmit={handleSubmit}>
+          {/* Row component to create a row for first input field */}
+          <Row label="Title">
+            <input
+              className="input"
+              placeholder="Enter the Title of the Blog here.."
+              value={formdata.title}
+              onChange={(e) => {
+                setFormdata({ ...formdata, title: e.target.value });
+              }}
+              ref={titleRef}
+            />
+          </Row>
+
+          {/* Row component to create a row for Text area field */}
+          <Row label="Content">
+            <textarea
+              className="input content"
+              placeholder="Content of the Blog goes here.."
+              value={formdata.content}
+              onChange={(e) => {
+                setFormdata({ ...formdata, content: e.target.value });
+              }}
+              required
+            />
+          </Row>
+
+          {/* Button to submit the blog */}
+          <button className="btn">ADD</button>
+        </form>
+      </div>
+
+      <hr />
+
+      {/* Section where submitted blogs will be displayed */}
+      <h2> Blogs </h2>
+      {blog.map((entry, index) => {
+        return (
+          <div key={index} className="blog">
+            <h3>{entry.title}</h3>
+            <p>{entry.content}</p>
+            <div className="blog-btn">
+              <button
+                className="btn remove"
+                onClick={() => handleDelete(entry.id)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }

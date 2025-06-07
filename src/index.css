@@ -13,7 +13,7 @@ body{
   font-family: Georgia, 'Times New Roman', Times, serif;
   display:block;
   align-self: center;
-   
+  
 }
 
 .blog{
@@ -75,8 +75,8 @@ h1{
   background-color: rgb(68, 68, 243);
   color: white;
   border-style: none;
-  width: 80px;
-  height: 30px;
+  width: 90px;
+  height: 40px;
   font-size: 15px;
   font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif
   
@@ -91,6 +91,14 @@ h1{
   text-align: end;
   margin-right: 10px;
 }
+
+.heading{
+  font-size: 20px;
+
+}
+
+
+
 /* Created with https://www.css-gradient.com */
 /* background: #565318;
 background: -webkit-linear-gradient(right, #565318, #3C464E);
